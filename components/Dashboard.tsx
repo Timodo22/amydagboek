@@ -99,8 +99,26 @@ const Dashboard: React.FC<DashboardProps> = ({ username, logs, onAddEntry, onLog
             )}
         </div>
 
-        {/* Charts & Graphs */}
-        <Charts data={logs} />
+        {/* Charts & Graphs Section - RESPONSIVE FIX */}
+        <div className="bg-white rounded-xl shadow-sm border border-pink-100 p-4">
+            {/* Titel en instructie voor mobiel */}
+            <div className="mb-4">
+                 <h3 className="text-lg font-bold text-gray-700">Grafieken</h3>
+                 <p className="text-xs text-gray-400 md:hidden italic">
+                    ← Veeg over de grafiek om de historie te zien →
+                 </p>
+            </div>
+
+            {/* Scroll Container */}
+            <div className="overflow-x-auto touch-pan-x pb-2">
+                {/* min-w-[600px] forceert de breedte zodat de grafiek niet plet.
+                   Op mobiel ontstaat nu een scrollbalk.
+                */}
+                <div className="min-w-[600px] min-h-[400px]">
+                    <Charts data={logs} />
+                </div>
+            </div>
+        </div>
 
         {/* Recent History List */}
         <div className="bg-white rounded-xl shadow-sm p-6">
