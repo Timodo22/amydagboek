@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
-import { DailyLog, MenstruationEntry } from '../types';
-import { saveLog } from '../services/storageService';
+import React, { useState, useEffect } from 'react';
+import { DailyLog } from '../types';
+// We importeren saveLog niet meer direct voor de submit, 
+// we doen de logica hier om updates (edits) zeker goed te laten gaan.
+// Tenzij je saveLog update in je service file.
+import { USER_DATA_KEY } from '../services/storageService'; 
+// Als je USER_DATA_KEY niet exporteert in storageService, zet dan hier: const USER_DATA_KEY = 'skinglow_data';
 
 interface EntryFormProps {
   onClose: () => void;
@@ -9,7 +13,7 @@ interface EntryFormProps {
 
 // Helper for generating default empty state
 const createEmptyLog = (): DailyLog => ({
-  id: Date.now().toString(), // temporary ID
+  id: Date.now().toString(),
   date: new Date().toISOString().split('T')[0],
   activities: '',
   food: { breakfast: '', lunch: '', dinner: '', snacks: '', drinks: '' },
@@ -37,7 +41,6 @@ const createEmptyLog = (): DailyLog => ({
   notes: ''
 });
 
-// Moved outside to fix TypeScript errors regarding 'key' and 'children' props validation
 const SectionHeader = ({ title, icon }: { title: string; icon: string }) => (
   <h3 className="text-xl font-bold text-pink-600 mt-6 mb-3 flex items-center gap-2 border-b-2 border-pink-100 pb-1">
     <span>{icon}</span> {title}
@@ -52,7 +55,12 @@ const InputRow: React.FC<{ label: string; children?: React.ReactNode }> = ({ lab
 );
 
 const EntryForm: React.FC<EntryFormProps> = ({ onClose, initialData }) => {
+  // Als we initialData hebben (bewerken), gebruiken we dat ID.
+  // Anders maken we een nieuw ID aan.
   const [formData, setFormData] = useState<DailyLog>(initialData || createEmptyLog());
+  
+  // Is dit bewerken of nieuw?
+  const isEditing = !!initialData;
 
   const handleChange = (section: keyof DailyLog, field: string | null, value: any) => {
     setFormData(prev => {
@@ -82,15 +90,35 @@ const EntryForm: React.FC<EntryFormProps> = ({ onClose, initialData }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    saveLog(formData);
+    
+    // 1. Haal bestaande data op uit localStorage
+    // (Zorg dat de key 'skinglow_data' matcht met wat je in storageService.ts hebt staan)
+    const STORAGE_KEY = 'skinglow_data'; 
+    const storedData = localStorage.getItem(STORAGE_KEY);
+    let logs: DailyLog[] = storedData ? JSON.parse(storedData) : [];
+
+    if (isEditing) {
+        // 2a. UPDATE: Zoek de oude log en vervang hem
+        logs = logs.map(log => log.id === formData.id ? formData : log);
+    } else {
+        // 2b. NIEUW: Voeg toe aan de lijst
+        logs.push(formData);
+    }
+
+    // 3. Opslaan
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+    
+    // Sluit modal
     onClose();
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-xl p-6 max-w-2xl mx-auto border border-pink-100">
+    <div className="bg-white rounded-xl shadow-xl p-6 max-w-2xl mx-auto border border-pink-100 relative">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-pink-700">Nieuwe Dagboekaantekening</h2>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        <h2 className="text-2xl font-bold text-pink-700">
+            {isEditing ? '🖊️ Dagboek Bewerken' : '✨ Nieuwe Aantekening'}
+        </h2>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full w-8 h-8 flex items-center justify-center">✕</button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -297,7 +325,7 @@ const EntryForm: React.FC<EntryFormProps> = ({ onClose, initialData }) => {
         </InputRow>
 
         <button type="submit" className="w-full py-3 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-xl shadow-lg transform transition hover:scale-[1.01]">
-            Opslaan in Dagboek ✨
+            {isEditing ? 'Wijzigingen Opslaan' : 'Opslaan in Dagboek ✨'}
         </button>
 
       </form>

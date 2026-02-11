@@ -1,17 +1,22 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { DailyLog } from '../types';
 import Charts from './Charts';
 import { analyzePatterns } from '../services/patternAnalysis';
 import { clearUserData } from '../services/storageService';
+import EntryForm from './EntryForm'; // Zorg dat deze import klopt
 
 interface DashboardProps {
   username: string;
   logs: DailyLog[];
-  onAddEntry: () => void;
   onLogout: () => void;
+  // onAddEntry is niet meer nodig als prop, dat doet het dashboard nu zelf
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ username, logs, onAddEntry, onLogout }) => {
+const Dashboard: React.FC<DashboardProps> = ({ username, logs, onLogout }) => {
+  // State voor het beheren van de modal (nieuw of bewerken)
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingLog, setEditingLog] = useState<DailyLog | undefined>(undefined);
+
   // Filter logs for stats
   const totalEntries = logs.length;
   const pimpleDays = logs.filter(l => l.skin.newPimple).length;
@@ -23,8 +28,29 @@ const Dashboard: React.FC<DashboardProps> = ({ username, logs, onAddEntry, onLog
   const handleClearData = () => {
     if (window.confirm(`Weet je zeker dat je alle data voor ${username} wilt wissen? Dit kan niet ongedaan gemaakt worden.`)) {
         clearUserData();
-        window.location.reload(); // Herlaad de pagina om de staat te resetten
+        window.location.reload();
     }
+  };
+
+  // Functie voor NIEUWE entry
+  const handleAddNew = () => {
+    setEditingLog(undefined); // Geen data meegeven = leeg formulier
+    setIsModalOpen(true);
+  };
+
+  // Functie voor BEWERKEN (wordt aangeroepen als je op een rij klikt)
+  const handleEditEntry = (log: DailyLog) => {
+    setEditingLog(log); // Vul het formulier met deze data
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingLog(undefined);
+    // Optioneel: herlaad pagina of trigger een update als je live updates wilt zien zonder refresh
+    // window.location.reload(); 
+    // Beter is om de logs state in de parent (App.tsx) te updaten, maar een reload werkt altijd:
+    window.location.reload(); 
   };
 
   return (
@@ -55,7 +81,7 @@ const Dashboard: React.FC<DashboardProps> = ({ username, logs, onAddEntry, onLog
                 <p className="text-2xl font-bold text-gray-800">{avgStress} <span className="text-sm font-normal text-gray-400">/ 5</span></p>
             </div>
             <button 
-                onClick={onAddEntry}
+                onClick={handleAddNew}
                 className="bg-pink-500 hover:bg-pink-600 text-white rounded-xl shadow-md flex flex-col items-center justify-center transition transform hover:scale-105"
             >
                 <span className="text-2xl">+</span>
@@ -99,30 +125,23 @@ const Dashboard: React.FC<DashboardProps> = ({ username, logs, onAddEntry, onLog
             )}
         </div>
 
-        {/* Charts & Graphs Section - RESPONSIVE FIX */}
+        {/* Charts Section */}
         <div className="bg-white rounded-xl shadow-sm border border-pink-100 p-4">
-            {/* Titel en instructie voor mobiel */}
             <div className="mb-4">
                  <h3 className="text-lg font-bold text-gray-700">Grafieken</h3>
-                 <p className="text-xs text-gray-400 md:hidden italic">
-                    ← Veeg over de grafiek om de historie te zien →
-                 </p>
+                 <p className="text-xs text-gray-400 md:hidden italic">← Veeg over de grafiek →</p>
             </div>
-
-            {/* Scroll Container */}
             <div className="overflow-x-auto touch-pan-x pb-2">
-                {/* min-w-[600px] forceert de breedte zodat de grafiek niet plet.
-                   Op mobiel ontstaat nu een scrollbalk.
-                */}
                 <div className="min-w-[600px] min-h-[400px]">
                     <Charts data={logs} />
                 </div>
             </div>
         </div>
 
-        {/* Recent History List */}
+        {/* Recent History List - NU KLIKBAAR */}
         <div className="bg-white rounded-xl shadow-sm p-6">
             <h3 className="text-lg font-bold text-gray-700 mb-4">Recente Logboeken</h3>
+            <p className="text-xs text-gray-400 mb-2 italic">Klik op een rij om deze aan te passen ✏️</p>
             <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                     <thead>
@@ -136,7 +155,12 @@ const Dashboard: React.FC<DashboardProps> = ({ username, logs, onAddEntry, onLog
                     </thead>
                     <tbody>
                         {logs.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5).map(log => (
-                            <tr key={log.id} className="border-b border-gray-50 hover:bg-pink-50/30">
+                            <tr 
+                                key={log.id} 
+                                onClick={() => handleEditEntry(log)}
+                                className="border-b border-gray-50 hover:bg-pink-50 cursor-pointer transition-colors"
+                                title="Klik om te bewerken"
+                            >
                                 <td className="py-3 font-medium text-pink-600">{new Date(log.date).toLocaleDateString()}</td>
                                 <td className="py-3">
                                     <span className={`px-2 py-1 rounded text-xs ${log.lifestyle.stress > 3 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
@@ -146,7 +170,7 @@ const Dashboard: React.FC<DashboardProps> = ({ username, logs, onAddEntry, onLog
                                 <td className="py-3">
                                     {log.skin.newPimple ? '🔴 Breakout' : '✨ Rustig'}
                                 </td>
-                                <td className="py-3 text-gray-500 truncate max-w-[150px]">{log.food.dinner}</td>
+                                <td className="py-3 text-gray-500 truncate max-w-[150px]">{log.food.dinner || '-'}</td>
                                 <td className="py-3">{log.lifestyle.sleepHours}u</td>
                             </tr>
                         ))}
@@ -166,6 +190,19 @@ const Dashboard: React.FC<DashboardProps> = ({ username, logs, onAddEntry, onLog
         </div>
 
       </main>
+
+      {/* MODAL VOOR INVULLEN/BEWERKEN */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 backdrop-blur-sm overflow-y-auto">
+             <div className="w-full max-w-2xl max-h-screen overflow-y-auto my-auto">
+                <EntryForm 
+                    onClose={handleCloseModal} 
+                    initialData={editingLog} 
+                />
+             </div>
+        </div>
+      )}
+
     </div>
   );
 };
